@@ -43,9 +43,9 @@ async function app() {
     availableUsdtBalance,
     BTC_USDT_RATIO
   );
-  setInterval(() => {
+  setTimeout(function () {
     app();
-  }, 10000);
+  }, 60000);
 }
 
 async function getCurrentPrice(market: string) {
@@ -97,6 +97,22 @@ function getClosePrice(inputData: Array<ICandlesticksResponse>): Array<number> {
   return returnData;
 }
 
+function makeMarketOrder(
+  market: "BTCUSDT",
+  quantity: number,
+  side: "BUY" | "SELL",
+  type: "MARKET"
+): Promise<AxiosResponse<any>> {
+  return api.post("/exchange/api/v2/order", {
+    query: {
+      market: market,
+      side: side,
+      type: type,
+      quantity: quantity,
+    },
+  });
+}
+
 function getOpenPrice(inputData: ICandlesticksResponse[]): number[] {
   let returnData: Array<number> = new Array<number>();
   for (let value of inputData) {
@@ -105,7 +121,7 @@ function getOpenPrice(inputData: ICandlesticksResponse[]): number[] {
   return returnData;
 }
 
-function rebalancing(
+async function rebalancing(
   trend: "UP" | "DOWN",
   currentBtcUsdtPrice: number,
   availableBtcBalance: number,
@@ -118,38 +134,45 @@ function rebalancing(
   let currentBtcRatio: number =
     (availableBtcInDollar / totalAvailableBalanceInDollar) * 100;
   let ratioDiff: number = currentBtcRatio - btcUsdtRatio.BTC;
+  let response: AxiosResponse<any>;
   if (trend == "UP") {
     if (ratioDiff > 0) {
       let sellQuantity = availableBtcBalance * (ratioDiff / 100);
       if (sellQuantity > BTC_MINIMUM_TRADING && availableBtcBalance > 0) {
-        makeMarketOrder(MARKET, sellQuantity, "SELL", "MARKET");
+        response = await makeMarketOrder(
+          MARKET,
+          sellQuantity,
+          "SELL",
+          "MARKET"
+        );
+        if (response.status == 200) {
+          console.log(`${response.data.state}: ${sellQuantity} ${new Date()}`);
+        }
       }
     } else {
       let buyQuantity = availableBtcBalance * (Math.abs(ratioDiff) / 100);
       if (buyQuantity > BTC_MINIMUM_TRADING && availableUsdtBalance > 0) {
-        makeMarketOrder(MARKET, buyQuantity, "BUY", "MARKET");
+        response = await makeMarketOrder(MARKET, buyQuantity, "BUY", "MARKET");
+        if (response.status == 200) {
+          console.log(`${response.data.state}: ${buyQuantity} ${new Date()}`);
+        }
       }
     }
   } else {
     if (availableBtcBalance > BTC_MINIMUM_TRADING) {
-      makeMarketOrder(MARKET, availableBtcBalance, "SELL", "MARKET");
+      response = await makeMarketOrder(
+        MARKET,
+        availableBtcBalance,
+        "SELL",
+        "MARKET"
+      );
+      if (response.status == 200) {
+        console.log(
+          `${response.data.state}: ${availableBtcBalance} ${new Date()}`
+        );
+      }
     }
   }
 }
 
-function makeMarketOrder(
-  market: "BTCUSDT",
-  quantity: number,
-  side: "BUY" | "SELL",
-  type: "MARKET"
-) {
-  api.post("/exchange/api/v2/order", {
-    query: {
-      market: market,
-      side: side,
-      type: type,
-      quantity: quantity,
-    },
-  });
-}
 app();
