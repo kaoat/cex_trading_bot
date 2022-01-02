@@ -8,7 +8,7 @@
 ## How To
 
 1. create new file "Identity.ts" in apps folder.
-2. copy text from "Identity.template.ts" and place them in the file.
+2. copy text from "Identity.template" and place them in the file.
 3. replace it with your key.
 4. compile and run.
 
