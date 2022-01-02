@@ -43,6 +43,9 @@ async function app() {
     availableUsdtBalance,
     BTC_USDT_RATIO
   );
+  setInterval(() => {
+    app();
+  }, 10000);
 }
 
 async function getCurrentPrice(market: string) {
