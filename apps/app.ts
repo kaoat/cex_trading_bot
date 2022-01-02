@@ -24,12 +24,6 @@ const BTC_MINIMUM_TRADING = 15000 * Math.pow(10, -8);
 
 const api = new Api(conf);
 
-//   apiHost: "https://api-test.nicehash.com",
-//   apiKey: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-//   apiSecret:
-//     "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxxxxxxxxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-//   orgId: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-
 async function app() {
   let candleSticksArray: ICandlesticksResponse[] = await getCandleSticks();
   let closePrice: number[] = getClosePrice(candleSticksArray);
@@ -124,12 +118,12 @@ function rebalancing(
   if (trend == "UP") {
     if (ratioDiff > 0) {
       let sellQuantity = availableBtcBalance * (ratioDiff / 100);
-      if (sellQuantity > BTC_MINIMUM_TRADING) {
+      if (sellQuantity > BTC_MINIMUM_TRADING && availableBtcBalance > 0) {
         makeMarketOrder(MARKET, sellQuantity, "SELL", "MARKET");
       }
     } else {
       let buyQuantity = availableBtcBalance * (Math.abs(ratioDiff) / 100);
-      if (buyQuantity > BTC_MINIMUM_TRADING) {
+      if (buyQuantity > BTC_MINIMUM_TRADING && availableUsdtBalance > 0) {
         makeMarketOrder(MARKET, buyQuantity, "BUY", "MARKET");
       }
     }
