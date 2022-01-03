@@ -23,7 +23,7 @@ const BTC_USDT_RATIO: ITargetRatio = {
   USDT: 50,
 };
 const BTC_MINIMUM_TRADING = 10000 * Math.pow(10, -8);
-const BTCUSDT_MINIMUM_DIFF_RATIO = 1 / 100;
+const BTCUSDT_MINIMUM_DIFF_RATIO = 1;
 const TEN_MINUTES = 1000 * 60 * 10;
 
 const api = new Api(conf);
@@ -162,19 +162,25 @@ async function rebalancing(
   let currentBtcRatio: number =
     (availableBtcInDollar / totalAvailableBalanceInDollar) * 100;
   let ratioDiff: number = currentBtcRatio - btcUsdtRatio.BTC;
-  let response: AxiosResponse<any>;
   if (trend == "UP") {
     console.log(
-      `${new Date()}: Current BTCUSDT Diff Ratio: ${ratioDiff} | Minimum Diff Target Ratio: ${BTCUSDT_MINIMUM_DIFF_RATIO}`
+      `${new Date()}: Current BTCUSDT Diff Ratio: ${ratioDiff.toPrecision(
+        2
+      )} % | Minimum Diff Target Ratio: +-${BTCUSDT_MINIMUM_DIFF_RATIO} %`
     );
     if (Math.abs(ratioDiff) > BTCUSDT_MINIMUM_DIFF_RATIO) {
       if (ratioDiff > 0) {
         let sellQuantity = availableBtcBalance * (ratioDiff / 100);
+        console.log(
+          `${new Date()}: Sell BTC Quantity Condition: ${
+            sellQuantity > BTC_MINIMUM_TRADING
+          } | Available BTC Balance Condition: ${availableBtcBalance > 0}`
+        );
         if (sellQuantity > BTC_MINIMUM_TRADING && availableBtcBalance > 0) {
           makeMarketOrder(MARKET, sellQuantity, "SELL", "MARKET")
             .then((res) => {
               console.log(
-                `${new Date()}:SELL btc in ${
+                `${new Date()}: SELL btc in ${
                   sellQuantity * currentBtcUsdtPrice
                 } dollar.`
               );
@@ -182,7 +188,7 @@ async function rebalancing(
             })
             .catch((err) => {
               console.log(
-                `${new Date()}:ERROR: ${
+                `${new Date()}: ERROR: ${
                   err.response.data.error.message
                 } | CODE: ${err.response.data.error.status}`
               );
@@ -190,11 +196,16 @@ async function rebalancing(
         }
       } else {
         let buyQuantity = availableBtcBalance * (Math.abs(ratioDiff) / 100);
+        console.log(
+          `${new Date()}: Buy BTC Quantity Condition: ${
+            buyQuantity > BTC_MINIMUM_TRADING
+          } | Available USDT Balance Condition: ${availableBtcBalance > 0}`
+        );
         if (buyQuantity > BTC_MINIMUM_TRADING && availableUsdtBalance > 0) {
           makeMarketOrder(MARKET, buyQuantity, "BUY", "MARKET")
             .then((res) => {
               console.log(
-                `${new Date()}:BUY btc in ${
+                `${new Date()}: BUY btc in ${
                   buyQuantity * currentBtcUsdtPrice
                 } dollar.`
               );
@@ -202,7 +213,7 @@ async function rebalancing(
             })
             .catch((err) => {
               console.log(
-                `${new Date()}:ERROR: ${
+                `${new Date()}: ERROR: ${
                   err.response.data.error.message
                 } | CODE: ${err.response.data.error.status}`
               );
@@ -211,11 +222,16 @@ async function rebalancing(
       }
     }
   } else {
+    console.log(
+      `${new Date()}: All BTC Sell Quantity Condition: ${
+        availableBtcBalance > BTC_MINIMUM_TRADING
+      }`
+    );
     if (availableBtcBalance > BTC_MINIMUM_TRADING) {
       makeMarketOrder(MARKET, availableBtcBalance, "SELL", "MARKET")
         .then((res) => {
           console.log(
-            `${new Date()}:SELL btc in ${
+            `${new Date()}: SELL btc in ${
               availableBtcBalance * currentBtcUsdtPrice
             } dollar.`
           );
@@ -223,7 +239,7 @@ async function rebalancing(
         })
         .catch((err) => {
           console.log(
-            `${new Date()}:ERROR: ${err.response.data.error.message} | CODE: ${
+            `${new Date()}: ERROR: ${err.response.data.error.message} | CODE: ${
               err.response.data.error.status
             }`
           );
