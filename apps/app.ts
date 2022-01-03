@@ -19,10 +19,11 @@ const RESOLUTION: number = 1440;
 const MARKET: "BTCUSDT" = "BTCUSDT";
 const COUNT_BACK: number = 40;
 const BTC_USDT_RATIO: ITargetRatio = {
-  BTC: 50,
-  USDT: 50,
+  BTC: 70,
+  USDT: 30,
 };
 const BTC_MINIMUM_TRADING = 10000 * Math.pow(10, -8);
+const USDT_MINIMUM_TRADING = 10;
 const BTCUSDT_MINIMUM_DIFF_RATIO = 1;
 const TEN_MINUTES = 1000 * 60 * 10;
 
@@ -107,14 +108,25 @@ function makeMarketOrder(
   side: "BUY" | "SELL",
   type: "MARKET"
 ): Promise<AxiosResponse<any>> {
-  return api.post("/exchange/api/v2/order", {
-    query: {
-      market: market,
-      side: side,
-      type: type,
-      quantity: quantity,
-    },
-  });
+  if (side == "BUY") {
+    return api.post("/exchange/api/v2/order", {
+      query: {
+        market: market,
+        side: side,
+        type: type,
+        secQuantity: quantity,
+      },
+    });
+  } else {
+    return api.post("/exchange/api/v2/order", {
+      query: {
+        market: market,
+        side: side,
+        type: type,
+        quantity: quantity,
+      },
+    });
+  }
 }
 
 function getOpenPrice(inputData: ICandlesticksResponse[]): number[] {
@@ -195,21 +207,17 @@ async function rebalancing(
             });
         }
       } else {
-        let buyQuantity = availableBtcBalance * (Math.abs(ratioDiff) / 100);
+        let buyQuantity = availableUsdtBalance * (Math.abs(ratioDiff) / 100);
         console.log(
           `${new Date()}: Buy BTC Quantity Condition: ${
-            buyQuantity > BTC_MINIMUM_TRADING
-          } | Available USDT Balance Condition: ${availableBtcBalance > 0}`
+            buyQuantity > USDT_MINIMUM_TRADING
+          } | Available USDT Balance Condition: ${availableUsdtBalance > 0}`
         );
-        if (buyQuantity > BTC_MINIMUM_TRADING && availableUsdtBalance > 0) {
+        if (buyQuantity > USDT_MINIMUM_TRADING && availableUsdtBalance > 0) {
           makeMarketOrder(MARKET, buyQuantity, "BUY", "MARKET")
             .then((res) => {
-              console.log(
-                `${new Date()}: BUY btc in ${
-                  buyQuantity * currentBtcUsdtPrice
-                } dollar.`
-              );
-              log(new Date(), "BUY", buyQuantity * currentBtcUsdtPrice);
+              console.log(`${new Date()}: BUY btc in ${buyQuantity} dollar.`);
+              log(new Date(), "BUY", buyQuantity);
             })
             .catch((err) => {
               console.log(
