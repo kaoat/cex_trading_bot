@@ -3,6 +3,8 @@ import Api from "./Api.js";
 import { IConfig, ICandlesticksResponse, ITargetRatio } from "./Interfaces";
 import { EMACalc, SMACalc, trendFinder } from "./indicators.js";
 import { AxiosResponse } from "axios";
+import fs from "fs";
+import { json } from "stream/consumers";
 
 const conf: IConfig = {
   apiHost: Identity.apiHost,
@@ -17,10 +19,12 @@ const RESOLUTION: number = 1440;
 const MARKET: "BTCUSDT" = "BTCUSDT";
 const COUNT_BACK: number = 40;
 const BTC_USDT_RATIO: ITargetRatio = {
-  BTC: 60,
-  USDT: 40,
+  BTC: 50,
+  USDT: 50,
 };
-const BTC_MINIMUM_TRADING = 15000 * Math.pow(10, -8);
+const BTC_MINIMUM_TRADING = 10000 * Math.pow(10, -8);
+const BTCUSDT_MINIMUM_DIFF_RATIO = 1 / 100;
+const TEN_MINUTES = 1000 * 60 * 10;
 
 const api = new Api(conf);
 
@@ -45,7 +49,7 @@ async function app() {
   );
   setTimeout(function () {
     app();
-  }, 60000);
+  }, TEN_MINUTES);
 }
 
 async function getCurrentPrice(market: string) {
@@ -120,6 +124,30 @@ function getOpenPrice(inputData: ICandlesticksResponse[]): number[] {
   }
   return returnData;
 }
+async function log(
+  date: Date,
+  operationType: "BUY" | "SELL",
+  quantityInDollar: number
+) {
+  let fileName: string = `${new Date().getDate()}-${
+    new Date().getMonth() + 1
+  }-${new Date().getFullYear()}.csv`;
+  let dirname = "/tradingLogs";
+
+  if (!fs.existsSync(dirname)) {
+    fs.mkdirSync(dirname);
+  }
+  if (!fs.existsSync(`${dirname}/${fileName}`)) {
+    fs.writeFileSync(
+      `${dirname}/${fileName}`,
+      "date,operationType, price,\r\n"
+    );
+  }
+  fs.appendFileSync(
+    `${dirname}/${fileName}`,
+    `${date},${operationType},${quantityInDollar},\r\n`
+  );
+}
 
 async function rebalancing(
   trend: "UP" | "DOWN",
@@ -136,43 +164,71 @@ async function rebalancing(
   let ratioDiff: number = currentBtcRatio - btcUsdtRatio.BTC;
   let response: AxiosResponse<any>;
   if (trend == "UP") {
-    if (ratioDiff > 0) {
-      let sellQuantity = availableBtcBalance * (ratioDiff / 100);
-      if (sellQuantity > BTC_MINIMUM_TRADING && availableBtcBalance > 0) {
-        response = await makeMarketOrder(
-          MARKET,
-          sellQuantity,
-          "SELL",
-          "MARKET"
-        );
-        if (response.status == 200) {
-          console.log(`${response.data.state}: ${sellQuantity} ${new Date()}`);
+    console.log(
+      `${new Date()}: Current BTCUSDT Diff Ratio: ${ratioDiff} | Minimum Diff Target Ratio: ${BTCUSDT_MINIMUM_DIFF_RATIO}`
+    );
+    if (Math.abs(ratioDiff) > BTCUSDT_MINIMUM_DIFF_RATIO) {
+      if (ratioDiff > 0) {
+        let sellQuantity = availableBtcBalance * (ratioDiff / 100);
+        if (sellQuantity > BTC_MINIMUM_TRADING && availableBtcBalance > 0) {
+          makeMarketOrder(MARKET, sellQuantity, "SELL", "MARKET")
+            .then((res) => {
+              console.log(
+                `${new Date()}:SELL btc in ${
+                  sellQuantity * currentBtcUsdtPrice
+                } dollar.`
+              );
+              log(new Date(), "SELL", sellQuantity * currentBtcUsdtPrice);
+            })
+            .catch((err) => {
+              console.log(
+                `${new Date()}:ERROR: ${
+                  err.response.data.error.message
+                } | CODE: ${err.response.data.error.status}`
+              );
+            });
         }
-      }
-    } else {
-      let buyQuantity = availableBtcBalance * (Math.abs(ratioDiff) / 100);
-      if (buyQuantity > BTC_MINIMUM_TRADING && availableUsdtBalance > 0) {
-        response = await makeMarketOrder(MARKET, buyQuantity, "BUY", "MARKET");
-        if (response.status == 200) {
-          console.log(`${response.data.state}: ${buyQuantity} ${new Date()}`);
+      } else {
+        let buyQuantity = availableBtcBalance * (Math.abs(ratioDiff) / 100);
+        if (buyQuantity > BTC_MINIMUM_TRADING && availableUsdtBalance > 0) {
+          makeMarketOrder(MARKET, buyQuantity, "BUY", "MARKET")
+            .then((res) => {
+              console.log(
+                `${new Date()}:BUY btc in ${
+                  buyQuantity * currentBtcUsdtPrice
+                } dollar.`
+              );
+              log(new Date(), "BUY", buyQuantity * currentBtcUsdtPrice);
+            })
+            .catch((err) => {
+              console.log(
+                `${new Date()}:ERROR: ${
+                  err.response.data.error.message
+                } | CODE: ${err.response.data.error.status}`
+              );
+            });
         }
       }
     }
   } else {
     if (availableBtcBalance > BTC_MINIMUM_TRADING) {
-      response = await makeMarketOrder(
-        MARKET,
-        availableBtcBalance,
-        "SELL",
-        "MARKET"
-      );
-      if (response.status == 200) {
-        console.log(
-          `${response.data.state}: ${availableBtcBalance} ${new Date()}`
-        );
-      }
+      makeMarketOrder(MARKET, availableBtcBalance, "SELL", "MARKET")
+        .then((res) => {
+          console.log(
+            `${new Date()}:SELL btc in ${
+              availableBtcBalance * currentBtcUsdtPrice
+            } dollar.`
+          );
+          log(new Date(), "SELL", availableBtcBalance * currentBtcUsdtPrice);
+        })
+        .catch((err) => {
+          console.log(
+            `${new Date()}:ERROR: ${err.response.data.error.message} | CODE: ${
+              err.response.data.error.status
+            }`
+          );
+        });
     }
   }
 }
-
 app();
