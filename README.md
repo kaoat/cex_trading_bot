@@ -1,4 +1,4 @@
-# nicehash trading bot only for BTCUSDT
+# nicehash trading bot
 
 ## Features
 
