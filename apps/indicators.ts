@@ -25,7 +25,6 @@ function SMACalc(mArray: number[], mRange: number): number[] {
   }
   return smaArray;
 }
-//https://www.tradingview.com/support/solutions/43000502589-moving-average/
 function EMACalc(mArray: Array<number>, mRange: number): Array<number> {
   var emaArray: number[] = new Array();
   let calculator: number = 0;

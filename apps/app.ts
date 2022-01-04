@@ -1,100 +1,158 @@
-import Identity from "./Identity.js";
+//import Identity from "./Identity.js";
 import Api from "./Api.js";
 import { IConfig, ICandlesticksResponse, ITargetRatio } from "./Interfaces";
 import { EMACalc, SMACalc, trendFinder } from "./indicators.js";
 import { AxiosResponse } from "axios";
 import fs from "fs";
-import { json } from "stream/consumers";
+import path from "path";
+import { fileURLToPath } from "url";
+import { url } from "inspector";
 
-const conf: IConfig = {
-  apiHost: Identity.apiHost,
-  apiKey: Identity.apiKey,
-  apiSecret: Identity.apiSecret,
-  orgId: Identity.orgId,
+// const conf: IConfig = {
+//   apiHost: Identity.apiHost,
+//   apiKey: Identity.apiKey,
+//   apiSecret: Identity.apiSecret,
+//   orgId: Identity.orgId,
+//   localTimeDiff: null,
+//   locale: "en",
+// };
+const UNIX_TIME_IN_1_DAY: number = 86400;
+const SETTING = JSON.parse(fs.readFileSync("../bot_config.json", "utf-8"));
+const API_CONFIG: IConfig = {
+  apiHost: SETTING.account.API_HOST,
+  apiKey: SETTING.account.API_KEY,
+  apiSecret: SETTING.account.API_SECRET,
   localTimeDiff: null,
   locale: "en",
+  orgId: SETTING.account.ORG_ID,
 };
-const UNIX_TIME_IN_1_DAY: number = 86400;
-const RESOLUTION: number = 1440;
-const MARKET: "BTCUSDT" = "BTCUSDT";
-const COUNT_BACK: number = 40;
-const BTC_USDT_RATIO: ITargetRatio = {
-  BTC: 70,
-  USDT: 30,
-};
-const BTC_MINIMUM_TRADING = 10000 * Math.pow(10, -8);
-const USDT_MINIMUM_TRADING = 10;
-const BTCUSDT_MINIMUM_DIFF_RATIO = 1;
-const TEN_MINUTES = 1000 * 60 * 10;
-
-const api = new Api(conf);
+const API = new Api(API_CONFIG);
+const MINUTES = 1000 * 60 * SETTING.botSetting.BOT_INTERVAL_TIME_MINUTES;
 
 async function app() {
-  let candleSticksArray: ICandlesticksResponse[] = await getCandleSticks();
-  let closePrice: number[] = getClosePrice(candleSticksArray);
-  let priceIndicator12: number[] = SMACalc(closePrice, 12);
-  let priceIndicator26: number[] = SMACalc(closePrice, 26);
-  let currentTrend: "UP" | "DOWN" = trendFinder(
-    priceIndicator12,
-    priceIndicator26
+  let timeTo: number = Math.round(new Date().getTime() / 1000);
+  let timeFrom: number =
+    timeTo - UNIX_TIME_IN_1_DAY * SETTING.botSetting.CANDLESTICKS_COUNT_BACK;
+  let candleSticksArray: ICandlesticksResponse[] = await getCandleSticks(
+    SETTING.orderSetting.TOKEN1.toUpperCase() +
+      SETTING.orderSetting.TOKEN2.toUpperCase(),
+    timeFrom,
+    timeTo,
+    SETTING.botSetting.CANDLESTICKS_COUNT_BACK,
+    SETTING.botSetting.GRAPH_INTERVAL_TIME_MINUTES
   );
-  let currentBtcUsdtPrice: number = await getCurrentPrice(MARKET);
-  let availableBtcBalance: number = await getAvailableBalance("BTC");
-  let availableUsdtBalance: number = await getAvailableBalance("USDT");
-  rebalancing(
-    currentTrend,
-    currentBtcUsdtPrice,
-    availableBtcBalance,
-    availableUsdtBalance,
-    BTC_USDT_RATIO
+  let closedPrice: number[] = getClosedPrice(candleSticksArray);
+  let shortIndicator: number[] = SMACalc(closedPrice, SETTING.indicator.SHORT);
+  let longIndicator: number[] = SMACalc(closedPrice, SETTING.indicator.LONG);
+  let trend: "UP" | "DOWN" = trendFinder(shortIndicator, longIndicator);
+  let token1Price: number = await getCurrentPrice(
+    SETTING.orderSetting.TOKEN1.toUpperCase() +
+      SETTING.orderSetting.TOKEN2.toUpperCase()
   );
+  let token1AvailableBalance: number = await getAvailableBalance(
+    SETTING.orderSetting.TOKEN1.toUpperCase()
+  );
+  let token2AvailableBalance: number = await getAvailableBalance(
+    SETTING.orderSetting.TOKEN1.toUpperCase()
+  );
+
+  if (trend == "UP") {
+    rebalancing(
+      SETTING.orderSetting.TOKEN1.toUpperCase(),
+      SETTING.orderSetting.TOKEN2.toUpperCase(),
+      token1Price,
+      token1AvailableBalance,
+      token2AvailableBalance,
+      SETTING.botSetting.TOKEN1_PERCENT_IN_PORT,
+      SETTING.botSetting.MINIMUM_PERCENT_DIFF,
+      SETTING.orderSetting.TOKEN1_MINIMUM_AMOUNT_PER_ORDER,
+      SETTING.orderSetting.TOKEN2_MINIMUM_AMOUNT_PER_ORDER
+    );
+  } else if (trend == "DOWN") {
+    if (
+      token1AvailableBalance >
+      SETTING.orderSetting.TOKEN1_MINIMUM_AMOUNT_PER_ORDER
+    ) {
+      let today: Date = new Date();
+      let todayString: string = `${today.getUTCDate()}-${today.getUTCMonth()}-${today.getUTCFullYear()}`;
+      makeMarketOrder(
+        SETTING.orderSetting.TOKEN1.toUpperCase() +
+          SETTING.orderSetting.TOKEN2.toUpperCase(),
+        "SELL",
+        token1AvailableBalance
+      )
+        .then((res) => {
+          console.log(
+            `${todayString}: SELL ${token1AvailableBalance} ${SETTING.orderSetting.TOKEN1.toUpperCase()} for ${
+              token1AvailableBalance * token1Price
+            } ${SETTING.orderSetting.TOKEN2.toUpperCase()}`
+          );
+          log(
+            today,
+            SETTING.orderSetting.TOKEN1.toUpperCase() +
+              SETTING.orderSetting.TOKEN2.toUpperCase(),
+            "SELL",
+            token1AvailableBalance,
+            token1Price,
+            token1AvailableBalance * token1Price + token2AvailableBalance
+          );
+        })
+        .catch((err) => {
+          console.log(
+            `${todayString}: error ${err.response.data.error.message} | code ${err.response.data.error.status}`
+          );
+        });
+    }
+  }
   setTimeout(function () {
     app();
-  }, TEN_MINUTES);
+  }, MINUTES);
 }
 
 async function getCurrentPrice(market: string) {
-  //https://api2.nicehash.com/exchange/api/v2/info/prices
-  var allPricesResponse: AxiosResponse<any> = await api.get(
+  var allPricesResponse: AxiosResponse<any> = await API.get(
     "/exchange/api/v2/info/prices",
     {}
   );
   return allPricesResponse.data[market];
 }
 
-async function getCandleSticks() {
-  var unixEndTime: number = Math.round(new Date().getTime() / 1000);
-  var unixStartTime: number = unixEndTime - UNIX_TIME_IN_1_DAY * COUNT_BACK;
-
+async function getCandleSticks(
+  market: string,
+  timeFrom: number,
+  timeTo: number,
+  countBack: number,
+  timeInterval: number
+) {
   var candleSticksParam = {
     query: {
-      countBack: COUNT_BACK,
-      from: unixStartTime,
-      to: unixEndTime,
-      market: MARKET,
-      resolution: RESOLUTION,
+      countBack: countBack,
+      from: timeFrom,
+      to: timeTo,
+      market: market,
+      resolution: timeInterval,
     },
   };
-  var candleStickResponse: AxiosResponse<Array<ICandlesticksResponse>> =
-    await api.get("/exchange/api/v2/info/candlesticks", candleSticksParam);
+  var candleStickResponse: AxiosResponse<ICandlesticksResponse[]> =
+    await API.get("/exchange/api/v2/info/candlesticks", candleSticksParam);
   return candleStickResponse.data;
 }
 
-async function getAvailableBalance(currency: "BTC" | "USDT"): Promise<number> {
-  var getBalanceParam = {
+async function getAvailableBalance(currency: string): Promise<number> {
+  let queryParam = {
     query: {
       extendedResponse: false,
     },
   };
-  let getBalanceResponse: AxiosResponse<any> = await api.get(
+  let getBalanceResponse: AxiosResponse<any> = await API.get(
     `/main/api/v2/accounting/account2/${currency}`,
-    getBalanceParam
+    queryParam
   );
   return getBalanceResponse.data.available * 1;
 }
 
-function getClosePrice(inputData: Array<ICandlesticksResponse>): Array<number> {
-  let returnData: Array<number> = new Array<number>();
+function getClosedPrice(inputData: ICandlesticksResponse[]): number[] {
+  let returnData: number[] = new Array<number>();
 
   for (let value of inputData) {
     returnData.push(value.close);
@@ -103,47 +161,36 @@ function getClosePrice(inputData: Array<ICandlesticksResponse>): Array<number> {
 }
 
 function makeMarketOrder(
-  market: "BTCUSDT",
-  quantity: number,
+  market: string,
   side: "BUY" | "SELL",
-  type: "MARKET"
+  quantity: number
 ): Promise<AxiosResponse<any>> {
+  let queryParam: any = {
+    query: {
+      market: market,
+      side: side,
+      type: "MARKET",
+    },
+  };
   if (side == "BUY") {
-    return api.post("/exchange/api/v2/order", {
-      query: {
-        market: market,
-        side: side,
-        type: type,
-        secQuantity: quantity,
-      },
-    });
-  } else {
-    return api.post("/exchange/api/v2/order", {
-      query: {
-        market: market,
-        side: side,
-        type: type,
-        quantity: quantity,
-      },
-    });
+    queryParam.query.secQuantity = quantity;
+  } else if (side == "SELL") {
+    queryParam.query.quantity = quantity;
   }
+  return API.post("/exchange/api/v2/order", queryParam);
 }
 
-function getOpenPrice(inputData: ICandlesticksResponse[]): number[] {
-  let returnData: Array<number> = new Array<number>();
-  for (let value of inputData) {
-    returnData.push(value.open);
-  }
-  return returnData;
-}
 async function log(
   date: Date,
-  operationType: "BUY" | "SELL",
-  quantityInDollar: number
+  market: string,
+  orderType: "BUY" | "SELL",
+  quantityInOrder: number,
+  price: number,
+  totalValueInToken2: number
 ) {
-  let fileName: string = `${new Date().getDate()}-${
-    new Date().getMonth() + 1
-  }-${new Date().getFullYear()}.csv`;
+  let fileName: string = `${date.getDate()}-${
+    date.getMonth() + 1
+  }-${date.getFullYear()}.csv`;
   let dirname = "/tradingLogs";
 
   if (!fs.existsSync(dirname)) {
@@ -152,104 +199,82 @@ async function log(
   if (!fs.existsSync(`${dirname}/${fileName}`)) {
     fs.writeFileSync(
       `${dirname}/${fileName}`,
-      "date,operationType, price,\r\n"
+      "Date,Market,Order Type,Amount,Price, Total Value(Token1+Token2) in Token2 unit,\r\n"
     );
   }
   fs.appendFileSync(
     `${dirname}/${fileName}`,
-    `${date},${operationType},${quantityInDollar},\r\n`
+    `${date},${market},${orderType},${quantityInOrder},${price},${totalValueInToken2},\r\n`
   );
 }
 
 async function rebalancing(
-  trend: "UP" | "DOWN",
-  currentBtcUsdtPrice: number,
-  availableBtcBalance: number,
-  availableUsdtBalance: number,
-  btcUsdtRatio: ITargetRatio
+  token1Name: string,
+  token2Name: string,
+  token1Price: number,
+  token1Balance: number,
+  token2Balance: number,
+  token1TargetPercentInPort: number,
+  minimumPercentDiff: number,
+  minimumToken1PerOrder: number,
+  minimumToken2PerOrder: number
 ) {
-  let availableBtcInDollar: number = currentBtcUsdtPrice * availableBtcBalance;
-  let totalAvailableBalanceInDollar: number =
-    availableUsdtBalance + availableBtcInDollar;
-  let currentBtcRatio: number =
-    (availableBtcInDollar / totalAvailableBalanceInDollar) * 100;
-  let ratioDiff: number = currentBtcRatio - btcUsdtRatio.BTC;
-  if (trend == "UP") {
-    console.log(
-      `${new Date()}: Current BTCUSDT Diff Ratio: ${ratioDiff.toPrecision(
-        2
-      )} % | Minimum Diff Target Ratio: +-${BTCUSDT_MINIMUM_DIFF_RATIO} %`
-    );
-    if (Math.abs(ratioDiff) > BTCUSDT_MINIMUM_DIFF_RATIO) {
-      if (ratioDiff > 0) {
-        let sellQuantity = availableBtcBalance * (ratioDiff / 100);
-        console.log(
-          `${new Date()}: Sell BTC Quantity Condition: ${
-            sellQuantity > BTC_MINIMUM_TRADING
-          } | Available BTC Balance Condition: ${availableBtcBalance > 0}`
-        );
-        if (sellQuantity > BTC_MINIMUM_TRADING && availableBtcBalance > 0) {
-          makeMarketOrder(MARKET, sellQuantity, "SELL", "MARKET")
-            .then((res) => {
-              console.log(
-                `${new Date()}: SELL btc in ${
-                  sellQuantity * currentBtcUsdtPrice
-                } dollar.`
-              );
-              log(new Date(), "SELL", sellQuantity * currentBtcUsdtPrice);
-            })
-            .catch((err) => {
-              console.log(
-                `${new Date()}: ERROR: ${
-                  err.response.data.error.message
-                } | CODE: ${err.response.data.error.status}`
-              );
-            });
-        }
-      } else {
-        let buyQuantity = availableUsdtBalance * (Math.abs(ratioDiff) / 100);
-        console.log(
-          `${new Date()}: Buy BTC Quantity Condition: ${
-            buyQuantity > USDT_MINIMUM_TRADING
-          } | Available USDT Balance Condition: ${availableUsdtBalance > 0}`
-        );
-        if (buyQuantity > USDT_MINIMUM_TRADING && availableUsdtBalance > 0) {
-          makeMarketOrder(MARKET, buyQuantity, "BUY", "MARKET")
-            .then((res) => {
-              console.log(`${new Date()}: BUY btc in ${buyQuantity} dollar.`);
-              log(new Date(), "BUY", buyQuantity);
-            })
-            .catch((err) => {
-              console.log(
-                `${new Date()}: ERROR: ${
-                  err.response.data.error.message
-                } | CODE: ${err.response.data.error.status}`
-              );
-            });
-        }
-      }
+  let token1BalanceInToken2Unit: number = token1Balance * token1Price;
+  let totalBalanceInToken2Unit: number =
+    token1BalanceInToken2Unit + token2Balance;
+  let token1PercenInPort: number =
+    (token1BalanceInToken2Unit / totalBalanceInToken2Unit) * 100;
+  let diffPercent: number = token1PercenInPort - token1TargetPercentInPort;
+
+  if (Math.abs(diffPercent) > minimumPercentDiff && diffPercent != 0) {
+    let today: Date = new Date();
+    let todayString: string = `${today.getUTCDate()}-${today.getUTCMonth()}-${today.getUTCFullYear()}`;
+    let orderTypeToOrder: "SELL" | "BUY";
+    let quantityToOrder: number;
+    let minimumToMakeOrder: number;
+    let newTotalValueInToken2Unit: number =
+      token1Price * token1Balance + token2Balance;
+
+    if (diffPercent > 0) {
+      quantityToOrder = token1Balance * (diffPercent / 100);
+      orderTypeToOrder = "SELL";
+      minimumToMakeOrder = minimumToken1PerOrder;
+    } else {
+      quantityToOrder = token2Balance * (Math.abs(diffPercent) / 100);
+      orderTypeToOrder = "BUY";
+      minimumToMakeOrder = minimumToken2PerOrder;
     }
-  } else {
-    console.log(
-      `${new Date()}: All BTC Sell Quantity Condition: ${
-        availableBtcBalance > BTC_MINIMUM_TRADING
-      }`
-    );
-    if (availableBtcBalance > BTC_MINIMUM_TRADING) {
-      makeMarketOrder(MARKET, availableBtcBalance, "SELL", "MARKET")
+
+    if (quantityToOrder > minimumToMakeOrder) {
+      makeMarketOrder(
+        token1Name + token2Name,
+        orderTypeToOrder,
+        quantityToOrder
+      )
         .then((res) => {
           console.log(
-            `${new Date()}: SELL btc in ${
-              availableBtcBalance * currentBtcUsdtPrice
-            } dollar.`
+            `${todayString}: ${orderTypeToOrder} ${
+              orderTypeToOrder == "BUY"
+                ? (quantityToOrder / token1Price).toPrecision(4)
+                : quantityToOrder
+            } ${token1Name} for ${
+              orderTypeToOrder == "BUY"
+                ? quantityToOrder
+                : quantityToOrder * token1Price
+            } ${token2Name}`
           );
-          log(new Date(), "SELL", availableBtcBalance * currentBtcUsdtPrice);
+          log(
+            today,
+            token1Name + token2Name,
+            orderTypeToOrder,
+            quantityToOrder,
+            token1Price,
+            newTotalValueInToken2Unit
+          );
         })
         .catch((err) => {
           console.log(
-            `${new Date()}: ERROR: ${err.response.data.error.message} | CODE: ${
-              err.response.data.error.status
-            }`
+            `${todayString}: error ${err.response.data.error.message} | code ${err.response.data.error.status}`
           );
         });
     }

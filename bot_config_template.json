@@ -1,0 +1,29 @@
+{
+    "account":{
+        "API_HOST":"https://api2.nicehash.com",
+        "API_KEY":"",
+        "API_SECRET":"",
+        "ORG_ID":""
+    },
+    "orderSetting":{
+        "TOKEN1":"ETH",
+        "TOKEN2":"USDT",
+        "TOKEN1_MINIMUM_AMOUNT_PER_ORDER":0.001,
+        "TOKEN2_MINIMUM_AMOUNT_PER_ORDER":10
+    },
+    "botSetting":{
+        "BOT_INTERVAL_TIME_MINUTES":10,
+        "TOKEN1_PERCENT_IN_PORT":50,
+        "MINIMUM_PERCENT_DIFF":1,
+        "CANDLESTICKS_COUNT_BACK":40,
+        "GRAPH_INTERVAL_TIME_MINUTES":1440
+    },
+    "indicator":{
+        "SHORT":12,
+        "LONG":26,
+        "TYPE":"SMA"
+    },
+    "apiEndpoint":{
+        "s":1
+    }
+}
