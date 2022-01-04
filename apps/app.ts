@@ -213,10 +213,10 @@ async function rebalancing(
   let token1PercenInPort: number =
     (token1BalanceInToken2Unit / totalBalanceInToken2Unit) * 100;
   let diffPercent: number = token1PercenInPort - token1TargetPercentInPort;
+  let today: Date = new Date();
+  let todayString: string = `${today.getUTCDate()}-${today.getUTCMonth()}-${today.getUTCFullYear()}`;
 
-  if (Math.abs(diffPercent) > minimumPercentDiff && diffPercent != 0) {
-    let today: Date = new Date();
-    let todayString: string = `${today.getUTCDate()}-${today.getUTCMonth()}-${today.getUTCFullYear()}`;
+  if (Math.abs(diffPercent) > minimumPercentDiff) {
     let orderTypeToOrder: "SELL" | "BUY";
     let quantityToOrder: number;
     let minimumToMakeOrder: number;
@@ -265,7 +265,19 @@ async function rebalancing(
             `${todayString}: error ${err.response.data.error.message} | code ${err.response.data.error.status}`
           );
         });
+    } else {
+      console.log(
+        `${todayString}: Condition:${
+          quantityToOrder > minimumToMakeOrder
+        } | Quantity: ${quantityToOrder} | minimum: ${minimumToMakeOrder}`
+      );
     }
+  } else {
+    console.log(
+      `${todayString}: Condition: ${
+        Math.abs(diffPercent) > minimumPercentDiff
+      } | Diff: ${diffPercent} | Minimum Diff: ${minimumPercentDiff}`
+    );
   }
 }
 app();
