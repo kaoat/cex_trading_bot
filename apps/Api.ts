@@ -1,11 +1,7 @@
 import CryptoJS from "crypto-js";
 import qs from "qs";
 import { IConfig, IRequest } from "./Interfaces";
-import axios, {
-  AxiosRequestConfig,
-  AxiosRequestHeaders,
-  AxiosResponse,
-} from "axios";
+import axios, { AxiosRequestHeaders, AxiosResponse } from "axios";
 
 type httpVerb = "GET" | "POST" | "PUT" | "DELETE";
 

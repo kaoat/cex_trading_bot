@@ -1,21 +1,9 @@
-//import Identity from "./Identity.js";
 import Api from "./Api.js";
-import { IConfig, ICandlesticksResponse, ITargetRatio } from "./Interfaces";
-import { EMACalc, SMACalc, trendFinder } from "./indicators.js";
+import { IConfig, ICandlesticksResponse } from "./Interfaces";
+import { SMACalc, trendFinder } from "./indicators.js";
 import { AxiosResponse } from "axios";
 import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { url } from "inspector";
 
-// const conf: IConfig = {
-//   apiHost: Identity.apiHost,
-//   apiKey: Identity.apiKey,
-//   apiSecret: Identity.apiSecret,
-//   orgId: Identity.orgId,
-//   localTimeDiff: null,
-//   locale: "en",
-// };
 const UNIX_TIME_IN_1_DAY: number = 86400;
 const SETTING = JSON.parse(fs.readFileSync("../bot_config.json", "utf-8"));
 const API_CONFIG: IConfig = {

@@ -25,9 +25,4 @@ interface IConfig {
   localTimeDiff: number | null;
 }
 
-interface ITargetRatio {
-  BTC: number;
-  USDT: number;
-}
-
-export { ICandlesticksResponse, IRequest, IConfig, ITargetRatio };
+export { ICandlesticksResponse, IRequest, IConfig };
