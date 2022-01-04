@@ -43,7 +43,13 @@ async function app() {
   let token2AvailableBalance: number = await getAvailableBalance(
     SETTING.orderSetting.TOKEN1.toUpperCase()
   );
-
+  let today: Date = new Date();
+  let todayString: string = `${today.getUTCDate()}-${
+    today.getUTCMonth() + 1
+  }-${today.getUTCFullYear()}`;
+  console.log(
+    `${todayString}: Trend: ${trend} | Price: ${token1Price} ${SETTING.orderSetting.TOKEN2.toUpperCase()}`
+  );
   if (trend == "UP") {
     rebalancing(
       SETTING.orderSetting.TOKEN1.toUpperCase(),
@@ -57,8 +63,6 @@ async function app() {
       SETTING.orderSetting.TOKEN2_MINIMUM_AMOUNT_PER_ORDER
     );
   } else if (trend == "DOWN") {
-    let today: Date = new Date();
-    let todayString: string = `${today.getUTCDate()}-${today.getUTCMonth()}-${today.getUTCFullYear()}`;
     if (
       token1AvailableBalance >
       SETTING.orderSetting.TOKEN1_MINIMUM_AMOUNT_PER_ORDER
@@ -223,7 +227,9 @@ async function rebalancing(
     (token1BalanceInToken2Unit / totalBalanceInToken2Unit) * 100;
   let diffPercent: number = token1PercenInPort - token1TargetPercentInPort;
   let today: Date = new Date();
-  let todayString: string = `${today.getUTCDate()}-${today.getUTCMonth()}-${today.getUTCFullYear()}`;
+  let todayString: string = `${today.getUTCDate()}-${
+    today.getUTCMonth() + 1
+  }-${today.getUTCFullYear()}`;
 
   if (Math.abs(diffPercent) > minimumPercentDiff) {
     let orderTypeToOrder: "SELL" | "BUY";
