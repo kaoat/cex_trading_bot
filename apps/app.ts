@@ -57,12 +57,12 @@ async function app() {
       SETTING.orderSetting.TOKEN2_MINIMUM_AMOUNT_PER_ORDER
     );
   } else if (trend == "DOWN") {
+    let today: Date = new Date();
+    let todayString: string = `${today.getUTCDate()}-${today.getUTCMonth()}-${today.getUTCFullYear()}`;
     if (
       token1AvailableBalance >
       SETTING.orderSetting.TOKEN1_MINIMUM_AMOUNT_PER_ORDER
     ) {
-      let today: Date = new Date();
-      let todayString: string = `${today.getUTCDate()}-${today.getUTCMonth()}-${today.getUTCFullYear()}`;
       makeMarketOrder(
         SETTING.orderSetting.TOKEN1.toUpperCase() +
           SETTING.orderSetting.TOKEN2.toUpperCase(),
@@ -90,6 +90,15 @@ async function app() {
             `${todayString}: error ${err.response.data.error.message} | code ${err.response.data.error.status}`
           );
         });
+    } else {
+      console.log(
+        `${todayString}: Condition: ${
+          token1AvailableBalance >
+          SETTING.orderSetting.TOKEN1_MINIMUM_AMOUNT_PER_ORDER
+        } | Available: ${token1AvailableBalance} | Minimum: ${
+          SETTING.orderSetting.TOKEN1_MINIMUM_AMOUNT_PER_ORDER
+        }`
+      );
     }
   }
   setTimeout(function () {
