@@ -50,9 +50,9 @@ async function app() {
       SETTING.orderSetting.TOKEN2.toUpperCase()
     );
     let today: Date = new Date();
-    let todayString: string = `${today.getUTCDate()}-${
-      today.getUTCMonth() + 1
-    }-${today.getUTCFullYear()} ${today.getUTCHours()}:${today.getUTCMinutes()}`;
+    let todayString: string = `${today.getDate()}-${
+      today.getMonth() + 1
+    }-${today.getFullYear()} ${today.getHours()}:${today.getMinutes()}`;
     console.log(
       `${todayString}: Trend: ${trend} | Price: ${token1Price} ${SETTING.orderSetting.TOKEN2.toUpperCase()}`
     );
@@ -113,8 +113,6 @@ async function app() {
     }
   } catch (error) {
     console.log(error);
-  } finally {
-    setInterval(app, MINUTES);
   }
 }
 
@@ -236,9 +234,9 @@ async function rebalancing(
   let diffPercent: number = token1PercenInPort - token1TargetPercentInPort;
 
   let today: Date = new Date();
-  let todayString: string = `${today.getUTCDate()}-${
-    today.getUTCMonth() + 1
-  }-${today.getUTCFullYear()} ${today.getUTCHours()}:${today.getUTCMinutes()}`;
+  let todayString: string = `${today.getDate()}-${
+    today.getMonth() + 1
+  }-${today.getFullYear()} ${today.getHours()}:${today.getMinutes()}`;
 
   if (Math.abs(diffPercent) > minimumPercentDiff) {
     let orderTypeToOrder: "SELL" | "BUY";
@@ -305,3 +303,4 @@ async function rebalancing(
 }
 
 app();
+setInterval(app, MINUTES);
