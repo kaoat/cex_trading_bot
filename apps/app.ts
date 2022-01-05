@@ -52,7 +52,7 @@ async function app() {
     let today: Date = new Date();
     let todayString: string = `${today.getUTCDate()}-${
       today.getUTCMonth() + 1
-    }-${today.getUTCFullYear()} ${today.getUTCHours}:${today.getUTCMinutes}`;
+    }-${today.getUTCFullYear()} ${today.getUTCHours()}:${today.getUTCMinutes()}`;
     console.log(
       `${todayString}: Trend: ${trend} | Price: ${token1Price} ${SETTING.orderSetting.TOKEN2.toUpperCase()}`
     );
@@ -238,7 +238,7 @@ async function rebalancing(
   let today: Date = new Date();
   let todayString: string = `${today.getUTCDate()}-${
     today.getUTCMonth() + 1
-  }-${today.getUTCFullYear()} ${today.getUTCHours}:${today.getUTCMinutes}`;
+  }-${today.getUTCFullYear()} ${today.getUTCHours()}:${today.getUTCMinutes()}`;
 
   if (Math.abs(diffPercent) > minimumPercentDiff) {
     let orderTypeToOrder: "SELL" | "BUY";
